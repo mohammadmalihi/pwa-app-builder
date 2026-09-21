@@ -1,0 +1,11 @@
+node_modules/
+dist/
+generated/*
+!generated/.gitkeep
+uploads/*
+!uploads/.gitkeep
+android-builds/
+generated-apks/*
+!generated-apks/.gitkeep
+*.log
+.env

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>App Builder — ساخت اپ از روی وب‌سایت</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div class="hero-badge">PWA App Builder</div>
+      <h1>وب‌سایتت رو به یک اپ سبک تبدیل کن</h1>
+      <p>لوگو و آدرس سایتت رو وارد کن، یک اپ نصب‌شدنی با آیکون و اسپلش‌اسکرین اختصاصی بساز.</p>
+    </header>
+
+    <main class="layout">
+      <form id="build-form" class="card form-card">
+        <div class="field">
+          <label>نوع اپ</label>
+          <div class="platform-toggle">
+            <label class="platform-option">
+              <input type="radio" name="platform" value="pwa" checked />
+              <span> PWA</span>
+            </label>
+            <label class="platform-option">
+              <input type="radio" name="platform" value="android" />
+              <span>📦 APK اندروید</span>
+            </label>
+          </div>
+          <p class="platform-hint" id="platform-hint">برای آیفون؛ یک وب‌اپ نصب‌شدنی سبک، بدون نیاز به ساخت.</p>
+        </div>
+
+        <div class="field">
+          <label>لوگوی اپ</label>
+          <label for="logo-input" class="dropzone" id="dropzone">
+            <img id="logo-preview" class="logo-preview hidden" alt="پیش‌نمایش لوگو" />
+            <div id="dropzone-placeholder" class="dropzone-placeholder">
+              <span class="dz-icon">🖼️</span>
+              <span>برای آپلود کلیک کن یا فایل رو بکش اینجا</span>
+              <span class="dz-hint">PNG، JPG، WebP یا SVG — حداکثر ۵ مگابایت</span>
+            </div>
+          </label>
+          <input type="file" id="logo-input" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden required />
+        </div>
+
+        <div class="field">
+          <label for="url-input">آدرس سایت</label>
+          <input type="text" id="url-input" name="targetUrl" placeholder="example.com" required />
+        </div>
+
+        <div class="field">
+          <label for="name-input">نام اپ <span class="optional">(اختیاری)</span></label>
+          <input type="text" id="name-input" name="appName" placeholder="مثلاً فروشگاه من" maxlength="45" />
+        </div>
+
+        <div class="field field-row">
+          <div class="color-field">
+            <label for="theme-color">رنگ تم</label>
+            <input type="color" id="theme-color" name="themeColor" value="#4f46e5" />
+          </div>
+          <div class="color-field">
+            <label for="bg-color">رنگ پس‌زمینه</label>
+            <input type="color" id="bg-color" name="backgroundColor" value="#0b0f1a" />
+          </div>
+        </div>
+
+        <button type="submit" id="submit-btn" class="build-btn">
+          <span id="btn-label">🚀 ساخت اپ</span>
+        </button>
+        <p class="build-progress-hint hidden" id="build-progress-hint">ساخت APK با Gradle انجام می‌شه و ممکنه تا حدود ۱ دقیقه طول بکشه…</p>
+
+        <p id="error-msg" class="error-msg hidden"></p>
+      </form>
+
+      <section class="card result-card" id="result-card">
+        <div class="result-placeholder" id="result-placeholder">
+          <span class="dz-icon">📱</span>
+          <p>بعد از ساخت، لینک نصب و دانلود اپ اینجا نمایش داده می‌شه</p>
+        </div>
+
+        <div id="result-body" class="result-body hidden">
+          <div class="result-icon-wrap">
+            <img id="result-icon" alt="آیکون اپ" />
+          </div>
+          <h3 id="result-name"></h3>
+          <p class="result-hint" id="result-hint">اپ آماده‌ست! برای نصب روی گوشی، لینک زیر رو در گوشی باز کن و «Add to Home Screen» رو بزن.</p>
+
+          <a id="preview-link" class="btn btn-primary" target="_blank" rel="noopener">باز کردن اپ</a>
+          <a id="download-link" class="btn btn-secondary" target="_blank" rel="noopener">دانلود فایل‌های اپ (zip)</a>
+
+          <div class="link-box hidden" id="link-box">
+            <input id="preview-url-text" type="text" readonly />
+            <button type="button" id="copy-btn">کپی لینک</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

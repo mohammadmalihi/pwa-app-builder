@@ -1,0 +1,39 @@
+const CACHE_NAME = '{{CACHE_NAME}}';
+const SHELL_FILES = [
+  './index.html',
+  './manifest.webmanifest',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/apple-touch-icon.png',
+  './icons/favicon.png',
+];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_FILES)),
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)),
+      ),
+    ),
+  );
+  self.clients.claim();
+});
+
+// Only serve the local app-shell from cache; everything else (the target
+// site) is left to the network untouched since it is a different origin.
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  const isShellFile = url.origin === self.location.origin;
+  if (!isShellFile) return;
+
+  event.respondWith(
+    caches.match(event.request).then((cached) => cached || fetch(event.request)),
+  );
+});

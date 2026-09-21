@@ -1,0 +1,17 @@
+{
+  "name": "{{APP_NAME}}",
+  "short_name": "{{APP_NAME_SHORT}}",
+  "description": "{{APP_NAME}} - ساخته شده با App Builder",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "{{BACKGROUND_COLOR}}",
+  "theme_color": "{{THEME_COLOR}}",
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "./icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

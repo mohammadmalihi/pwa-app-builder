@@ -1,0 +1,4 @@
+<resources>
+    <color name="theme_color">{{THEME_COLOR}}</color>
+    <color name="background_color">{{BACKGROUND_COLOR}}</color>
+</resources>
