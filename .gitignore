@@ -7,5 +7,6 @@ uploads/*
 android-builds/
 generated-apks/*
 !generated-apks/.gitkeep
+app-registry/
 *.log
 .env

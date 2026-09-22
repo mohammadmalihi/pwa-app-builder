@@ -1,6 +1,7 @@
 package com.appbuilder.generated;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.PorterDuff;
 import android.net.Uri;
@@ -13,6 +14,14 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
 
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+
 public class MainActivity extends Activity {
 
     private static final long MIN_SPLASH_MS = 1400;
@@ -22,6 +31,7 @@ public class MainActivity extends Activity {
     private WebView webView;
     private View splashOverlay;
     private boolean splashHidden = false;
+    private String currentUrl;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,9 +79,12 @@ public class MainActivity extends Activity {
         });
         webView.setWebChromeClient(new WebChromeClient());
 
-        webView.loadUrl(getString(R.string.target_url));
+        currentUrl = getString(R.string.target_url);
+        webView.loadUrl(currentUrl);
 
         splashOverlay.postDelayed(this::scheduleHideSplash, FAILSAFE_MS);
+
+        fetchRemoteConfig();
     }
 
     private void scheduleHideSplash() {
@@ -87,6 +100,66 @@ public class MainActivity extends Activity {
             splashOverlay.startAnimation(fade);
             splashOverlay.postDelayed(() -> splashOverlay.setVisibility(View.GONE), 300);
         }, wait);
+    }
+
+    /**
+     * Asks the app-builder backend for this app's current settings. This lets
+     * the owner change the target URL for everyone instantly (no reinstall),
+     * and lets us detect when a newer build (new icon/name) is available so
+     * we can prompt the user to update.
+     */
+    private void fetchRemoteConfig() {
+        new Thread(() -> {
+            try {
+                URL url = new URL(getString(R.string.config_url));
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(4000);
+                conn.setReadTimeout(4000);
+                conn.setRequestMethod("GET");
+
+                if (conn.getResponseCode() == 200) {
+                    BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+                    StringBuilder body = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) body.append(line);
+                    reader.close();
+
+                    JSONObject json = new JSONObject(body.toString());
+                    runOnUiThread(() -> applyRemoteConfig(json));
+                }
+            } catch (Exception ignored) {
+                // offline or server unreachable: keep using the values baked into this build
+            }
+        }).start();
+    }
+
+    private void applyRemoteConfig(JSONObject json) {
+        if (isFinishing()) return;
+
+        String remoteUrl = json.optString("targetUrl", null);
+        if (remoteUrl != null && !remoteUrl.isEmpty() && !remoteUrl.equals(currentUrl)) {
+            currentUrl = remoteUrl;
+            webView.loadUrl(remoteUrl);
+        }
+
+        int latestVersionCode = json.optInt("latestVersionCode", BuildConfig.VERSION_CODE);
+        String downloadUrl = json.optString("downloadUrl", null);
+        if (latestVersionCode > BuildConfig.VERSION_CODE && downloadUrl != null && !downloadUrl.isEmpty()) {
+            showUpdateDialog(downloadUrl);
+        }
+    }
+
+    private void showUpdateDialog(String downloadUrl) {
+        if (isFinishing()) return;
+        new AlertDialog.Builder(this)
+                .setTitle("نسخه‌ی جدید موجود است")
+                .setMessage("برای استفاده از آخرین تغییرات این اپ، لطفاً نسخه‌ی جدید رو نصب کنید.")
+                .setCancelable(true)
+                .setPositiveButton("به‌روزرسانی", (dialog, which) ->
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl))))
+                .setNegativeButton("بعداً", (dialog, which) -> dialog.dismiss())
+                .show();
     }
 
     @Override

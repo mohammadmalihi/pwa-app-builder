@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { AndroidBuilderController } from './android-builder.controller';
 import { AndroidBuilderService } from './android-builder.service';
+import { AppRegistryService } from './app-registry.service';
 import { BuilderController } from './builder.controller';
 import { BuilderService } from './builder.service';
 
 @Module({
   controllers: [BuilderController, AndroidBuilderController],
-  providers: [BuilderService, AndroidBuilderService],
+  providers: [BuilderService, AndroidBuilderService, AppRegistryService],
 })
 export class BuilderModule {}

@@ -111,22 +111,25 @@
     resultIcon.src = logoPreview.src || '';
     resultName.textContent = data.appName;
     resultHint.textContent = 'فایل APK ساخته شد! دانلودش کن، منتقلش کن به گوشی اندرویدی، و نصبش کن (ممکنه لازم باشه گزینه‌ی «نصب از منابع ناشناس» رو فعال کنی).';
-    previewLink.classList.add('hidden');
+    previewLink.href = `/manage.html?id=${data.appId}`;
+    previewLink.textContent = 'مدیریت این اپ (تغییر بعدی آیکون/آدرس/اسم)';
+    previewLink.classList.remove('hidden');
     downloadLink.href = data.downloadUrl;
     downloadLink.textContent = 'دانلود APK';
-    linkBox.classList.add('hidden');
+    previewUrlText.value = window.location.origin + `/manage.html?id=${data.appId}`;
+    linkBox.classList.remove('hidden');
 
     resultPlaceholder.classList.add('hidden');
     resultBody.classList.remove('hidden');
   }
 
-  async function pollAndroidStatus(id) {
+  async function pollAndroidStatus(appId) {
     for (;;) {
-      const res = await fetch(`/api/build/android/${id}/status`);
+      const res = await fetch(`/api/apps/${appId}/status`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'ساخت اپ با خطا مواجه شد');
 
-      if (data.status === 'done') return data;
+      if (data.status === 'done') return { ...data, appId };
       if (data.status === 'error') throw new Error(data.error || 'ساخت APK با خطا مواجه شد');
 
       await new Promise((resolve) => setTimeout(resolve, 2500));
@@ -153,11 +156,11 @@
         if (!res.ok) throw new Error(data.message || 'ساخت اپ با خطا مواجه شد');
         showResultPwa(data);
       } else {
-        const res = await fetch('/api/build/android', { method: 'POST', body: formData });
+        const res = await fetch('/api/apps', { method: 'POST', body: formData });
         const started = await res.json();
         if (!res.ok) throw new Error(started.message || 'ساخت اپ با خطا مواجه شد');
 
-        const done = await pollAndroidStatus(started.id);
+        const done = await pollAndroidStatus(started.appId);
         showResultAndroid(done);
       }
     } catch (err) {

@@ -1,9 +1,11 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { spawn } from 'child_process';
 import { join } from 'path';
 import { v4 as uuid } from 'uuid';
+import { AndroidAppRecord, AppRegistryService } from './app-registry.service';
 import { BuildAppDto } from './dto/build-app.dto';
+import { UpdateAndroidAppDto } from './dto/update-android-app.dto';
 import { loadLogo, renderFilledSquareIcon, renderSplashCard, toCircleMasked } from './utils/android-icon.util';
 
 const TEMPLATE_DIR = join(__dirname, 'templates', 'android-template');
@@ -18,14 +20,13 @@ const LAUNCHER_SIZES: Record<string, number> = {
   'mipmap-xxxhdpi': 192,
 };
 
-export type AndroidJobStatus = 'queued' | 'building' | 'done' | 'error';
+export type AndroidJobStatus = 'building' | 'done' | 'error';
 
 export interface AndroidJob {
-  id: string;
+  appId: string;
   status: AndroidJobStatus;
   appName: string;
   error?: string;
-  createdAt: number;
 }
 
 @Injectable()
@@ -36,70 +37,143 @@ export class AndroidBuilderService {
   // over the shared Gradle daemon / cache.
   private queue: Promise<void> = Promise.resolve();
 
-  async startBuild(logo: Express.Multer.File, dto: BuildAppDto): Promise<AndroidJob> {
+  constructor(private readonly registry: AppRegistryService) {}
+
+  async create(logo: Express.Multer.File, dto: BuildAppDto, baseUrl: string): Promise<AndroidJob> {
     if (!logo) {
       throw new BadRequestException('لوگو الزامی است');
     }
 
-    const targetUrl = this.normalizeUrl(dto.targetUrl);
-    const appName = this.sanitizeAppName(dto.appName) || this.deriveAppName(targetUrl);
-    const themeColor = dto.themeColor || '#4f46e5';
-    const backgroundColor = dto.backgroundColor || '#0b0f1a';
+    const appId = uuid().replace(/-/g, '').slice(0, 12);
+    const record: AndroidAppRecord = {
+      appId,
+      applicationId: `com.appbuilder.gen${appId}`,
+      appName: this.sanitizeAppName(dto.appName) || this.deriveAppName(this.normalizeUrl(dto.targetUrl)),
+      targetUrl: this.normalizeUrl(dto.targetUrl),
+      themeColor: dto.themeColor || '#4f46e5',
+      backgroundColor: dto.backgroundColor || '#0b0f1a',
+      versionCode: 1,
+      versionName: '1.0',
+      logoFileName: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
 
-    const id = uuid().replace(/-/g, '').slice(0, 12);
-    const job: AndroidJob = { id, status: 'queued', appName, createdAt: Date.now() };
-    this.jobs.set(id, job);
+    return this.enqueueBuild(record, logo.buffer, baseUrl);
+  }
+
+  async rebuild(
+    appId: string,
+    logo: Express.Multer.File | undefined,
+    dto: UpdateAndroidAppDto,
+    baseUrl: string,
+  ): Promise<AndroidJob> {
+    const existing = await this.registry.get(appId);
+
+    const record: AndroidAppRecord = {
+      ...existing,
+      appName: dto.appName ? this.sanitizeAppName(dto.appName) : existing.appName,
+      targetUrl: dto.targetUrl ? this.normalizeUrl(dto.targetUrl) : existing.targetUrl,
+      themeColor: dto.themeColor || existing.themeColor,
+      backgroundColor: dto.backgroundColor || existing.backgroundColor,
+      versionCode: existing.versionCode + 1,
+      versionName: `1.${existing.versionCode}`,
+      updatedAt: Date.now(),
+    };
+
+    const logoBuffer = logo ? logo.buffer : await this.registry.readLogo(appId, existing.logoFileName);
+    return this.enqueueBuild(record, logoBuffer, baseUrl);
+  }
+
+  /** Cheap, instant change: no rebuild, no version bump, takes effect on the next app launch. */
+  async patchUrl(appId: string, targetUrl: string): Promise<AndroidAppRecord> {
+    const record = await this.registry.get(appId);
+    record.targetUrl = this.normalizeUrl(targetUrl);
+    record.updatedAt = Date.now();
+    await this.registry.save(record);
+    return record;
+  }
+
+  getJob(appId: string): AndroidJob | undefined {
+    return this.jobs.get(appId);
+  }
+
+  async getRecord(appId: string) {
+    return this.registry.get(appId);
+  }
+
+  async getPublicConfig(appId: string, baseUrl: string) {
+    const record = await this.registry.get(appId);
+    return {
+      targetUrl: record.targetUrl,
+      appName: record.appName,
+      latestVersionCode: record.versionCode,
+      downloadUrl: `${baseUrl}/api/apps/${appId}/download`,
+    };
+  }
+
+  async getLogo(appId: string): Promise<{ buffer: Buffer; contentType: string }> {
+    const record = await this.registry.get(appId);
+    const buffer = await this.registry.readLogo(appId, record.logoFileName);
+    const extension = record.logoFileName.split('.').pop() || 'png';
+    const contentTypes: Record<string, string> = {
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      webp: 'image/webp',
+      svg: 'image/svg+xml',
+    };
+    return { buffer, contentType: contentTypes[extension] || 'image/png' };
+  }
+
+  async streamApk(appId: string, res: NodeJS.WritableStream): Promise<void> {
+    await this.registry.get(appId); // 404s if the app was never built
+    const buffer = await fs.readFile(join(OUTPUT_ROOT, `${appId}.apk`));
+    res.write(buffer);
+    res.end();
+  }
+
+  private enqueueBuild(record: AndroidAppRecord, logoBuffer: Buffer, baseUrl: string): AndroidJob {
+    const job: AndroidJob = { appId: record.appId, status: 'building', appName: record.appName };
+    this.jobs.set(record.appId, job);
 
     this.queue = this.queue.then(() =>
-      this.runBuild(job, logo.buffer, { targetUrl, appName, themeColor, backgroundColor }).catch((err) => {
+      this.runBuild(record, logoBuffer, baseUrl, job).catch((err) => {
         job.status = 'error';
         job.error = err?.message || 'ساخت اپ اندروید با خطا مواجه شد';
-        this.logger.error(`Android build ${id} failed: ${job.error}`);
+        this.logger.error(`Android build ${record.appId} failed: ${job.error}`);
       }),
     );
 
     return job;
   }
 
-  getJob(id: string): AndroidJob {
-    const job = this.jobs.get(id);
-    if (!job) {
-      throw new NotFoundException('درخواست ساخت پیدا نشد');
-    }
-    return job;
-  }
-
-  async streamApk(id: string, res: NodeJS.WritableStream): Promise<void> {
-    const job = this.getJob(id);
-    if (job.status !== 'done') {
-      throw new BadRequestException('اپ هنوز آماده نیست');
-    }
-    const apkPath = join(OUTPUT_ROOT, `${id}.apk`);
-    const buffer = await fs.readFile(apkPath);
-    res.write(buffer);
-    res.end();
-  }
-
   private async runBuild(
-    job: AndroidJob,
+    record: AndroidAppRecord,
     logoBuffer: Buffer,
-    vars: { targetUrl: string; appName: string; themeColor: string; backgroundColor: string },
+    baseUrl: string,
+    job: AndroidJob,
   ): Promise<void> {
-    job.status = 'building';
-    const workDir = join(WORK_ROOT, job.id);
+    const workDir = join(WORK_ROOT, `${record.appId}-v${record.versionCode}`);
 
     await fs.mkdir(WORK_ROOT, { recursive: true });
     await fs.cp(TEMPLATE_DIR, workDir, { recursive: true });
 
-    await this.writeAndroidManifestVars(workDir, vars.appName, vars.targetUrl, vars.themeColor, vars.backgroundColor);
-    await this.writeApplicationId(workDir, job.id);
-    await this.generateAndroidIcons(workDir, logoBuffer, vars.backgroundColor);
+    const configUrl = `${baseUrl}/api/apps/${record.appId}/config`;
+    await this.writeAndroidResources(workDir, record, configUrl);
+    await this.writeGradleConfig(workDir, record);
+    await this.generateAndroidIcons(workDir, logoBuffer, record.backgroundColor);
 
     await this.runGradle(workDir);
 
     const apkSrc = join(workDir, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
     await fs.mkdir(OUTPUT_ROOT, { recursive: true });
-    await fs.copyFile(apkSrc, join(OUTPUT_ROOT, `${job.id}.apk`));
+    await fs.copyFile(apkSrc, join(OUTPUT_ROOT, `${record.appId}.apk`));
+
+    // Persist the logo + record only once the build actually succeeded, so a
+    // failed rebuild never clobbers the last known-good, installed version.
+    const extension = this.inferExtension(logoBuffer);
+    record.logoFileName = await this.registry.saveLogo(record.appId, logoBuffer, extension);
+    await this.registry.save(record);
 
     job.status = 'done';
 
@@ -134,33 +208,31 @@ export class AndroidBuilderService {
     });
   }
 
-  private async writeAndroidManifestVars(
-    workDir: string,
-    appName: string,
-    targetUrl: string,
-    themeColor: string,
-    backgroundColor: string,
-  ): Promise<void> {
+  private async writeAndroidResources(workDir: string, record: AndroidAppRecord, configUrl: string): Promise<void> {
     const stringsPath = join(workDir, 'app', 'src', 'main', 'res', 'values', 'strings.xml');
     const stringsTemplate = await fs.readFile(stringsPath, 'utf8');
     const strings = stringsTemplate
-      .split('{{APP_NAME}}').join(this.escapeXml(appName))
-      .split('{{TARGET_URL}}').join(this.escapeXml(targetUrl));
+      .split('{{APP_NAME}}').join(this.escapeXml(record.appName))
+      .split('{{TARGET_URL}}').join(this.escapeXml(record.targetUrl))
+      .split('{{CONFIG_URL}}').join(this.escapeXml(configUrl));
     await fs.writeFile(stringsPath, strings, 'utf8');
 
     const colorsPath = join(workDir, 'app', 'src', 'main', 'res', 'values', 'colors.xml');
     const colorsTemplate = await fs.readFile(colorsPath, 'utf8');
     const colors = colorsTemplate
-      .split('{{THEME_COLOR}}').join(themeColor)
-      .split('{{BACKGROUND_COLOR}}').join(backgroundColor);
+      .split('{{THEME_COLOR}}').join(record.themeColor)
+      .split('{{BACKGROUND_COLOR}}').join(record.backgroundColor);
     await fs.writeFile(colorsPath, colors, 'utf8');
   }
 
-  private async writeApplicationId(workDir: string, id: string): Promise<void> {
+  private async writeGradleConfig(workDir: string, record: AndroidAppRecord): Promise<void> {
     const gradlePath = join(workDir, 'app', 'build.gradle');
     const template = await fs.readFile(gradlePath, 'utf8');
-    const applicationId = `com.appbuilder.gen${id}`;
-    await fs.writeFile(gradlePath, template.split('{{APPLICATION_ID}}').join(applicationId), 'utf8');
+    const gradle = template
+      .split('{{APPLICATION_ID}}').join(record.applicationId)
+      .split('{{VERSION_CODE}}').join(String(record.versionCode))
+      .split('{{VERSION_NAME}}').join(record.versionName);
+    await fs.writeFile(gradlePath, gradle, 'utf8');
   }
 
   private async generateAndroidIcons(workDir: string, logoBuffer: Buffer, backgroundColor: string): Promise<void> {
@@ -184,6 +256,15 @@ export class AndroidBuilderService {
     await fs.mkdir(drawableDir, { recursive: true });
     const splashCard = await renderSplashCard(source, 240);
     await fs.writeFile(join(drawableDir, 'splash_logo.png'), splashCard);
+  }
+
+  private inferExtension(buffer: Buffer): string {
+    // Cheap sniff by magic bytes; falls back to png (sharp always re-encodes
+    // icons as png regardless, this is only for storing the source logo).
+    if (buffer.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
+    if (buffer.slice(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))) return 'jpg';
+    if (buffer.slice(0, 4).toString('ascii') === 'RIFF') return 'webp';
+    return 'svg';
   }
 
   private normalizeUrl(rawUrl: string): string {

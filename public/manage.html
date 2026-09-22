@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>مدیریت اپ اندروید</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div class="hero-badge">مدیریت اپ</div>
+      <h1 id="app-title">مدیریت اپ اندروید</h1>
+      <p>آدرس رو فوری عوض کن، یا آیکون/اسم رو تغییر بده و یک نسخه‌ی جدید منتشر کن — کاربرهایی که اپ رو نصب کردن، پیام «نسخه‌ی جدید موجود است» رو می‌بینن.</p>
+    </header>
+
+    <main class="layout">
+      <div>
+        <section class="card" id="current-info-card">
+          <div class="current-info">
+            <img id="current-icon" class="result-icon-wrap-img" alt="آیکون فعلی" />
+            <div>
+              <h3 id="current-name">—</h3>
+              <p class="result-hint" id="current-meta">در حال بارگذاری…</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="card form-card" id="quick-url-card">
+          <h3 class="section-title">۱. تغییر سریع آدرس</h3>
+          <p class="platform-hint">بدون rebuild، بدون نیاز به نصب مجدد — دفعه‌ی بعد که کاربر اپ رو باز کنه، آدرس جدید لود می‌شه.</p>
+          <div class="field">
+            <label for="quick-url-input">آدرس جدید</label>
+            <input type="text" id="quick-url-input" placeholder="example.com" />
+          </div>
+          <button type="button" id="quick-url-btn" class="build-btn">💾 ذخیره‌ی فوری آدرس</button>
+          <p id="quick-url-msg" class="error-msg hidden"></p>
+        </section>
+      </div>
+
+      <section class="card form-card">
+        <h3 class="section-title">۲. انتشار نسخه‌ی جدید (آیکون / اسم / رنگ)</h3>
+        <p class="platform-hint">این گزینه APK رو دوباره می‌سازه و شماره نسخه رو بالا می‌بره. کاربرهای نصب‌شده پاپ‌آپ آپدیت می‌بینن.</p>
+
+        <form id="rebuild-form">
+          <div class="field">
+            <label>لوگوی جدید <span class="optional">(اختیاری — خالی بذار یعنی همون قبلی)</span></label>
+            <label for="logo-input" class="dropzone" id="dropzone">
+              <img id="logo-preview" class="logo-preview hidden" alt="پیش‌نمایش لوگو" />
+              <div id="dropzone-placeholder" class="dropzone-placeholder">
+                <span class="dz-icon">🖼️</span>
+                <span>برای آپلود لوگوی جدید کلیک کن</span>
+                <span class="dz-hint">PNG، JPG، WebP یا SVG</span>
+              </div>
+            </label>
+            <input type="file" id="logo-input" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
+          </div>
+
+          <div class="field">
+            <label for="name-input">نام جدید اپ <span class="optional">(اختیاری)</span></label>
+            <input type="text" id="name-input" name="appName" maxlength="45" />
+          </div>
+
+          <div class="field field-row">
+            <div class="color-field">
+              <label for="theme-color">رنگ تم</label>
+              <input type="color" id="theme-color" name="themeColor" />
+            </div>
+            <div class="color-field">
+              <label for="bg-color">رنگ پس‌زمینه</label>
+              <input type="color" id="bg-color" name="backgroundColor" />
+            </div>
+          </div>
+
+          <button type="submit" id="rebuild-btn" class="build-btn">
+            <span id="rebuild-btn-label">🚀 ساخت نسخه‌ی جدید</span>
+          </button>
+          <p class="build-progress-hint hidden" id="rebuild-progress-hint">ساخت APK با Gradle انجام می‌شه و ممکنه تا حدود ۱ دقیقه طول بکشه…</p>
+          <p id="rebuild-error" class="error-msg hidden"></p>
+        </form>
+
+        <div id="rebuild-result" class="hidden" style="margin-top: 18px;">
+          <p class="result-hint">نسخه‌ی جدید ساخته شد! این لینک رو به کاربرهات بده، یا منتظر بمون تا پاپ‌آپ آپدیت داخل اپ ببینن.</p>
+          <a id="rebuild-download-link" class="btn btn-primary" target="_blank" rel="noopener">دانلود APK نسخه‌ی جدید</a>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/manage.js"></script>
+</body>
+</html>

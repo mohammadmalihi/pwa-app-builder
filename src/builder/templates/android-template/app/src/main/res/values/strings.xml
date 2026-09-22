@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">{{APP_NAME}}</string>
     <string name="target_url">{{TARGET_URL}}</string>
+    <string name="config_url">{{CONFIG_URL}}</string>
 </resources>
